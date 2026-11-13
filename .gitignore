@@ -2,3 +2,5 @@ config.local.json
 *.db
 *.db-*
 __pycache__/
+.env
+.model-config-*.tmp

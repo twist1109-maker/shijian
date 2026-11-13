@@ -16,13 +16,30 @@
 若双击失败：在项目目录打开终端，运行 `py -3 app.py`，手动打开上述网址。
 端口占用：关闭旧服务窗口；或在终端设置 PORT 后运行，并使用对应端口网址。
 
-## 配置真实模型
-将 config.example.json 复制为 config.local.json，用记事本打开，填写自己的密钥（不要分享该文件）。
-DeepSeek：provider 为 deepseek，model 为 deepseek-chat。
-OpenAI：provider 为 openai，model 可为 gpt-4o-mini 或你的账户可用且支持工具调用的模型。
-api_key 填写对应服务商的密钥。两者任选一种，API 使用会产生相应服务商费用。
-也支持环境变量 MODEL_PROVIDER、MODEL_API_KEY、MODEL_NAME，环境变量优先。
-配置文件每次运行读取，无需将密钥写入源码。请求固定发送至对应官方 HTTPS API。
+## 配置真实模型（推荐在页面操作）
+1. 用 editor 登录，点击左侧 **模型配置**（或顶部配置按钮）。
+2. 选择 DeepSeek / OpenAI，填写对应模型名和 API Key。
+3. 点击 **保存并测试连接**。页面会显示后端实际读取的服务商、模型、密钥来源和配置文件绝对路径；密钥本身不回显。
+4. 测试会发送一条短请求，可能有少量服务商费用。连接成功后，再到任务中使用真实模型模式。
+
+**不要只修改 config.example.json**：这是示例文件，不会生效。若已填在这里，复制为 config.local.json，并恢复示例文件中的占位符；不要上传密钥。
+也可以把 config.example.json 复制为 config.local.json 后填写，保存后刷新页面即可，无需重启。
+支持项目根目录 `.env` 和系统环境变量（无需额外安装库）：
+```
+MODEL_PROVIDER=deepseek
+DEEPSEEK_API_KEY=你的本机密钥
+MODEL_NAME=deepseek-chat
+```
+OpenAI可使用 OPENAI_API_KEY，默认模型为gpt-4o-mini；通用密钥变量为 MODEL_API_KEY。
+同一字段优先级：非空系统环境变量 > .env > config.local.json。空环境变量不会覆盖文件值。若保存后仍由环境变量生效，页面会提示实际来源。
+模型支持工具调用仍需实际任务验证，连接测试不能代替完整 Agent 验收。
+不要使用 VS Code Live Server 或直接打开 static/index.html；请运行 `py -3 app.py` 并访问后端打印的地址。
+
+## 更新到修复版 v1.1.0
+停止旧服务（终端 Ctrl+C），在项目目录执行 `git pull`，再运行 `py -3 app.py`。
+浏览器使用 Ctrl+F5 强制刷新，应显示v1.1.0和“模型配置”。不会删除现有data.db。
+修复：成功后按钮不恢复、未保存草稿切换丢失、进程重启遗留运行中状态、配置错误导致状态接口或后台异常。
+已增加后端图文导出接口，审核完成的任务也能导出；保存并提交会先保存未提交修改。
 
 ## 5分钟演示
 1. 营销登录，新建任务，选择“把时间留给阅读”，填写读者与渠道。
@@ -58,3 +75,9 @@ docs/：需求设计、测试用例、运行证据、汇报PPT、演示讲稿和
 ## 原始要求与时间
 任务书原计划11月6日验收；课程记录提到11月16日前提交实习材料。实际最新截止时间请向老师确认。
 日记和报告基于本人真实经历另行完成，不包含在本项目中。记录中的测试为本环境实际结果，不代表已完成学校验收。
+
+## 运行本轮回归检查
+
+后端：`python -m unittest discover -s tests -v`（21项）。
+前端事件：`node tests/test_frontend.cjs`（13项，需要Node，仅测试时需要）。
+模型响应使用测试替身，不作为真实服务商证据。详见 docs/修复记录_v1.1.0.md。

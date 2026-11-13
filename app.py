@@ -3,6 +3,7 @@ import json, os, sqlite3, secrets, hashlib, hmac, threading, time, urllib.reques
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
+import model_config
 ROOT=Path(__file__).parent
 DB=ROOT/'data.db'
 SESSIONS={}
@@ -24,6 +25,9 @@ CREATE TABLE IF NOT EXISTS logs(id INTEGER PRIMARY KEY,task_id INTEGER,run_id IN
   for name,role,pw in [('editor','editor','Editor123!'),('reviewer','reviewer','Review123!')]:
    salt=secrets.token_hex(16); digest=hashlib.pbkdf2_hmac('sha256',pw.encode(),salt.encode(),120000).hex()
    c.execute('INSERT OR IGNORE INTO users VALUES(?,?,?,?)',(name,role,salt,digest))
+  # 服务重启后线程不再存在，解锁上一次被中断的任务并保留已有版本。
+  c.execute("UPDATE runs SET status='failed',error='服务重启，上一轮执行已中断，可重新运行' WHERE status='running'")
+  c.execute("UPDATE tasks SET ai_status='failed' WHERE ai_status='running'")
   if not c.execute('SELECT 1 FROM materials').fetchone():
    for title,content in [('把时间留给阅读','书名：把时间留给阅读\n作者：林知（虚构）\n定价：49.00元\n适读人群：大学生、初入职场读者\n内容：通过阅读计划、笔记方法和注意力练习，帮助读者建立日常阅读习惯。\n目录：从十分钟开始；选择适合的书；记录与复盘。\n已确认卖点：包含阅读计划表和笔记示例。\n获奖、销量、推荐人：未提供。'),('城市里的自然课','书名：城市里的自然课\n作者：周禾（虚构）\n定价：未提供\n适读人群：亲子家庭\n内容：介绍常见植物观察和自然记录方法。\n已确认卖点：配有观察任务卡。\n获奖、销量：未提供。')]:
     c.execute('INSERT INTO materials(title,content,source,version,created) VALUES(?,?,?,?,?)',(title,content,'原创教学模拟资料，不用于真实营销',1,now()))
@@ -52,15 +56,13 @@ def record_tool(task,run,name,args):
  return result,status
 
 def model_settings():
- cfg={}
- p=ROOT/'config.local.json'
- if p.exists(): cfg=json.loads(p.read_text(encoding='utf-8-sig'))
- provider=os.getenv('MODEL_PROVIDER',cfg.get('provider','deepseek'))
- key=os.getenv('MODEL_API_KEY',cfg.get('api_key',''))
- base='https://api.openai.com/v1' if provider=='openai' else 'https://api.deepseek.com'
- model='gpt-4o-mini' if provider=='openai' else 'deepseek-chat'
- return key,base,os.getenv('MODEL_NAME',cfg.get('model') or model)
+ info,key=model_config.resolve(ROOT)
+ if info['error']: raise ValueError(info['error'])
+ return key,info['endpoint'].removesuffix('/chat/completions'),info['model']
+def model_info():
+ return model_config.resolve(ROOT)[0]
 def generate(task,run,mode):
+ key=''
  try:
   if mode=='failure': raise TimeoutError('教学故障演示：模拟模型超时；没有发出真实模型请求')
   if mode=='simulation':
@@ -76,10 +78,8 @@ def generate(task,run,mode):
     remaining=deadline-time.monotonic()
     if remaining<=0: raise TimeoutError('任务超过150秒限制')
     body={'model':model,'messages':messages,'tools':TOOLS,'tool_choice':'auto','temperature':0.5}
-    req=urllib.request.Request(base+'/chat/completions',data=dump(body).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
-    try:
-     with urllib.request.urlopen(req,timeout=min(45,remaining)) as response: msg=json.load(response)['choices'][0]['message']
-    except urllib.error.HTTPError as e: raise ValueError(f'模型接口返回HTTP {e.code}，请检查密钥、余额或模型名') from None
+    response=model_config.completion({'endpoint':base+'/chat/completions'},key,body,timeout=min(45,remaining))
+    msg=response['choices'][0]['message']
     messages.append(msg)
     tc=msg.get('tool_calls') or []
     if tc:
@@ -103,7 +103,6 @@ def generate(task,run,mode):
    c.execute("UPDATE tasks SET ai_status='completed' WHERE id=?",(task['id'],)); c.execute("UPDATE runs SET status='completed' WHERE id=?",(run,))
  except Exception as e:
   error=str(e)
-  key,_,_=model_settings()
   if key: error=error.replace(key,'[REDACTED]')
   with connect() as c:
    c.execute("UPDATE tasks SET ai_status='failed' WHERE id=?",(task['id'],)); c.execute("UPDATE runs SET status='failed',error=? WHERE id=?",(error,run))
@@ -123,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
   path=urlparse(self.path).path
   if not path.startswith('/api/'):
    if path not in ['/','/app.js','/style.css','/cover.svg']: self.send_error(404); return
-   p=ROOT/'static'/('index.html' if path=='/' else path[1:]); data=p.read_bytes(); self.send_response(200); self.send_header('Content-Type',{'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css; charset=utf-8','svg':'image/svg+xml'}[p.suffix[1:]]); self.end_headers(); self.wfile.write(data); return
+   p=ROOT/'static'/('index.html' if path=='/' else path[1:]); data=p.read_bytes(); self.send_response(200); self.send_header('Cache-Control','no-store'); self.send_header('Content-Type',{'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css; charset=utf-8','svg':'image/svg+xml'}[p.suffix[1:]]); self.end_headers(); self.wfile.write(data); return
   data={}
   if self.command=='POST':
    # 本地服务仅接受同源 JSON 请求，拒绝跨站表单触发写操作。
@@ -144,7 +143,14 @@ class Handler(BaseHTTPRequestHandler):
   if path=='/api/state':
    with connect() as c:
     tasks=rows(c,'SELECT * FROM tasks '+('WHERE owner=? ' if user['role']=='editor' else '')+'ORDER BY id DESC',(user['name'],) if user['role']=='editor' else ())
-    self.reply({'user':{'name':user['name'],'role':user['role']},'materials':rows(c,'SELECT * FROM materials ORDER BY id DESC'),'tasks':tasks,'rules':RULES,'key_configured':bool(model_settings()[0])}); return
+    self.reply({'user':{'name':user['name'],'role':user['role']},'materials':rows(c,'SELECT * FROM materials ORDER BY id DESC'),'tasks':tasks,'rules':RULES,'key_configured':model_info()['configured'],'model_config':model_info(),'app_version':'1.1.0'}); return
+  if path in ['/api/settings/model','/api/settings/model/test']:
+   if user['role']!='editor': raise PermissionError('模型配置仅限营销账号管理')
+   if path.endswith('/test'):
+    if self.command!='POST': raise ValueError('连接测试需POST请求')
+    self.reply(model_config.test_connection(ROOT)); return
+   if self.command=='POST': self.reply(model_config.save(ROOT,data)); return
+   self.reply(model_info()); return
   if path=='/api/materials':
    if user['role']!='editor': raise PermissionError('只有营销人员可添加资料')
    for k in ['title','content','source']:
@@ -170,6 +176,12 @@ class Handler(BaseHTTPRequestHandler):
     if user['role']=='editor' and t['owner']!=user['name']: raise PermissionError('无权访问他人任务')
     if not action and self.command=='GET':
      self.reply({'task':t,'versions':rows(c,'SELECT * FROM versions WHERE task_id=? ORDER BY id DESC',(tid,)),'reviews':rows(c,'SELECT * FROM reviews WHERE task_id=? ORDER BY id DESC',(tid,)),'runs':rows(c,'SELECT * FROM runs WHERE task_id=? ORDER BY id DESC',(tid,)),'logs':rows(c,'SELECT * FROM logs WHERE task_id=? ORDER BY id',(tid,))}); return
+    if action=='export' and self.command=='GET':
+     from html import escape
+     latest=c.execute('SELECT * FROM versions WHERE task_id=? ORDER BY id DESC LIMIT 1',(tid,)).fetchone()
+     if not latest: raise ValueError('请先生成或保存正文后再导出')
+     html='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>'+escape(t['title'])+'</title><style>body{max-width:850px;margin:40px auto;padding:20px;font-family:system-ui;line-height:1.9}svg{width:160px;float:left;margin:0 24px 12px 0}pre{white-space:pre-wrap;font-family:inherit}</style><h1>'+escape(t['title'])+'</h1>'+(ROOT/'static/cover.svg').read_text(encoding='utf-8')+'<pre>'+escape(latest['content'])+'</pre><p>教学模拟图文 · 任务 #'+str(tid)+' · 版本 #'+str(latest['id'])+' · 状态 '+escape(t['status'])+'</p></html>'
+     self.reply({'filename':'marketing-'+str(tid)+'.html','content':html,'version_id':latest['id']}); return
     if self.command!='POST': raise ValueError('请求方法错误')
     if action in ['run','save','submit','update']:
      if user['role']!='editor': raise PermissionError('此操作仅限营销人员')
