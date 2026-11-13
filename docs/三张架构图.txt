@@ -1,0 +1,23 @@
+【系统功能图】
+书语工作台
+├ 营销角色：资料新增/查询 → 任务创建/修改 → AI生成 → 人工版本 → 提交
+├ 审核角色：任务查看 → 意见填写 → 退回/通过
+└ 共同查看：图文结果、资料依据、运行日志、历史版本和审核记录。
+
+【技术调用图】
+Windows浏览器（HTML/CSS/JS）
+↓ 同源JSON HTTP + HttpOnly会话Cookie
+Python ThreadingHTTPServer（权限/输入校验/状态机）
+├ SQLite：账号、任务、资料、版本、运行、工具日志、审核
+└ Agent循环 → 官方DeepSeek/OpenAI HTTPS Chat Completions接口
+              ↑ 模型工具请求 / 后端执行结果 ↓
+
+【数据处理与工具执行图】
+录入/导入图书资料 → materials（ID、来源、版本）
+创建任务 → tasks.material_id
+任务需求 → 模型自主选择工具和参数
+read_sources → 返回当前关联资料与规则 → 模型读取
+模型生成草稿 → validate_copy → 返回问题、数字依据与来源 → 模型修正
+最终结果 → 后端再次校验 → versions
+人工编辑新版本 → reviews → 审核状态
+每次实际执行 → logs（task_id、run_id、工具、参数、返回、状态、时间）

@@ -1,0 +1,98 @@
+[
+  {
+    "test": "未登录访问被拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "错误密码被拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "必填项缺失",
+    "result": "PASS"
+  },
+  {
+    "test": "无效资料ID",
+    "result": "PASS"
+  },
+  {
+    "test": "审核人员不能创建",
+    "result": "PASS"
+  },
+  {
+    "test": "任务可保存修改",
+    "result": "PASS"
+  },
+  {
+    "test": "编辑不能审核",
+    "result": "PASS"
+  },
+  {
+    "test": "空草稿不能提交",
+    "result": "PASS"
+  },
+  {
+    "test": "模拟流程两类真实本地工具执行",
+    "result": "PASS"
+  },
+  {
+    "test": "模拟记录明确标识",
+    "result": "PASS"
+  },
+  {
+    "test": "旧版本冲突被拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "失败状态保留人工版本",
+    "result": "PASS"
+  },
+  {
+    "test": "未配置密钥明确失败",
+    "result": "PASS"
+  },
+  {
+    "test": "提交审核",
+    "result": "PASS"
+  },
+  {
+    "test": "重复提交被拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "待审核不能修改",
+    "result": "PASS"
+  },
+  {
+    "test": "退回审核",
+    "result": "PASS"
+  },
+  {
+    "test": "退回可重新提交",
+    "result": "PASS"
+  },
+  {
+    "test": "审核通过",
+    "result": "PASS"
+  },
+  {
+    "test": "历史版本与审核可查",
+    "result": "PASS"
+  },
+  {
+    "test": "数字与禁用表达检查",
+    "result": "PASS"
+  },
+  {
+    "test": "工具参数越界拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "空工具参数拒绝",
+    "result": "PASS"
+  },
+  {
+    "test": "资料不足可追溯",
+    "result": "PASS"
+  }
+]
