@@ -1,5 +1,6 @@
 let state = null, detail = null, selected = null, page = 'tasks', tab = 'copy', timer = null;
 let requestBusy = false;
+let taskSearch = '', taskFilter = 'all';
 const app = document.querySelector('#app');
 const drafts = new Map();
 const formDrafts = new Map();
@@ -31,7 +32,7 @@ function resetSession() {
 }
 function login() {
   resetSession(); state = null;
-  app.innerHTML = `<div class="login"><div class="eyebrow">PUBLISHING × AI</div><div class="brand">书语 / 营销工作台</div><p class="muted">从图书资料，到有依据的营销表达。</p><div class="card"><h2>登录工作台</h2><form id="login"><label>账号</label><input name="name" value="editor" required autocomplete="username"><label>密码</label><input name="password" type="password" value="Editor123!" required autocomplete="current-password"><button class="primary" type="submit">进入工作台 →</button></form><p class="muted" style="margin-top:22px">营销：editor / Editor123!<br>审核：reviewer / Review123!</p><div class="warn">教学演示系统。样例图书、封面与规则均为模拟资料。</div><small>版本 1.1.0</small></div></div>`;
+  app.innerHTML = `<div class="login"><div class="eyebrow">PUBLISHING × AI</div><div class="brand">书语 / 营销工作台</div><p class="muted">从图书资料，到有依据的营销表达。</p><div class="card"><h2>登录工作台</h2><form id="login"><label>账号</label><input name="name" value="editor" required autocomplete="username"><label>密码</label><input name="password" type="password" value="Editor123!" required autocomplete="current-password"><button class="primary" type="submit">进入工作台 →</button></form><p class="muted" style="margin-top:22px">营销：editor / Editor123!<br>审核：reviewer / Review123!</p><div class="warn">教学演示系统。样例图书、封面与规则均为模拟资料。</div><small>版本 1.2.0</small></div></div>`;
   document.querySelector('#login').onsubmit = e => {
     e.preventDefault();
     return perform(e.target.querySelector('button'), async () => {
@@ -78,24 +79,33 @@ function render() {
   if (!state) return;
   const editor = state.user.role === 'editor';
   const titles = { tasks: '让好书，被更多人看见。', materials: '每一句表达，都有据可查。', settings: '连接模型，开始真实创作。' };
-  app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand">书语<span style="font-size:13px"> SHUYU</span></div><small>图书营销工作台</small><nav><button type="button" data-page="tasks" class="${page === 'tasks' ? 'active' : ''}">◫　营销任务</button><button type="button" data-page="materials" class="${page === 'materials' ? 'active' : ''}">▤　资料与规则</button>${editor ? `<button type="button" data-page="settings" class="${page === 'settings' ? 'active' : ''}">⚙　模型配置</button>` : ''}</nav><footer>${editor ? '营销编辑' : '内容审核'} · ${esc(state.user.name)}<br><button type="button" id="logout">退出账号</button><br>教学项目 / v${esc(state.app_version || '1.1.0')}</footer></aside><main class="main"><header class="top"><div><div class="eyebrow">BOOK MARKETING STUDIO</div><h1>${titles[page]}</h1><span class="muted">资料驱动生成 · 工具执行可追溯 · 人工审核闭环</span></div><div class="row"><button type="button" id="refresh">刷新状态</button>${editor ? `<button type="button" data-page="settings">${state.key_configured ? '模型密钥已配置' : '配置真实模型 →'}</button>` : `<span class="badge">${state.key_configured ? '模型密钥已配置' : '模型未配置，请联系营销人员'}</span>`}</div></header>${page === 'tasks' ? taskPage(editor) : page === 'settings' ? settingsPage() : materialPage(editor)}</main></div>`;
+  app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand">书语<span style="font-size:13px"> SHUYU</span></div><small>图书营销工作台</small><nav><button type="button" data-page="tasks" class="${page === 'tasks' ? 'active' : ''}">◫　营销任务</button><button type="button" data-page="materials" class="${page === 'materials' ? 'active' : ''}">▤　资料与规则</button>${editor ? `<button type="button" data-page="settings" class="${page === 'settings' ? 'active' : ''}">⚙　模型配置</button>` : ''}</nav><footer>${editor ? '营销编辑' : '内容审核'} · ${esc(state.user.name)}<br><button type="button" id="logout">退出账号</button><br>教学项目 / v${esc(state.app_version || '1.2.0')}</footer></aside><main class="main"><header class="top"><div><div class="eyebrow">BOOK MARKETING STUDIO</div><h1>${titles[page]}</h1><span class="muted">资料驱动生成 · 工具执行可追溯 · 人工审核闭环</span></div><div class="row"><button type="button" id="refresh">刷新状态</button>${editor ? `<button type="button" data-page="settings">${state.key_configured ? '模型密钥已配置' : '配置真实模型 →'}</button>` : `<span class="badge">${state.key_configured ? '模型密钥已配置' : '模型未配置，请联系营销人员'}</span>`}</div></header>${page === 'tasks' ? taskPage(editor) : page === 'settings' ? settingsPage() : materialPage(editor)}</main></div>`;
   bind();
+}
+function visibleTasks() {
+  return state.tasks.filter(t => (taskFilter === 'all' || t.status === taskFilter) && (t.title + ' ' + t.audience + ' ' + t.id).toLowerCase().includes(taskSearch.toLowerCase()));
 }
 function taskPage(editor) {
   const create = formDrafts.get('create') || {};
-  return `<section class="hero"><div><h2>从一本书，开始一次好好表达</h2><p>选择资料，明确读者，让 AI 协助完成营销草稿。<br><span class="muted">生成内容经规则初筛后，仍需人工核对与审核。</span></p></div><img src="/cover.svg" alt="原创教学封面"></section><div class="stats"><div><strong>${state.tasks.length}</strong><span>营销任务</span></div><div><strong>${state.tasks.filter(t => t.status === 'pending_review').length}</strong><span>等待审核</span></div><div><strong>${state.materials.length}</strong><span>图书资料</span></div></div><div class="grid"><section><div class="card"><div class="row between"><h2>任务列表</h2>${editor ? '<button type="button" id="new">＋ 新建</button>' : ''}</div>${state.tasks.map(t => `<button type="button" class="task ${t.id === selected ? 'selected' : ''}" data-task="${t.id}"><div class="row between"><strong>${esc(t.title)}</strong><span class="badge">${labels[t.status]}</span></div><p class="muted" style="margin:8px 0 0">#${t.id} · ${esc(t.channel)} · ${labels[t.ai_status]}</p></button>`).join('') || '<p class="muted">暂无任务，创建第一份营销内容。</p>'}</div>${editor && !selected ? `<div class="card"><h2>创建营销任务</h2><form id="create"><label>图书资料</label><select name="material_id">${state.materials.map(m => `<option value="${m.id}" ${String(create.material_id) === String(m.id) ? 'selected' : ''}>${esc(m.title)} · v${m.version}</option>`).join('')}</select>${fields(create)}<button type="submit" class="primary" style="margin-top:18px">保存任务</button></form></div>` : ''}</section><section>${detail && selected ? detailPage(editor) : '<div class="card empty">选择任务，查看图文草稿与执行记录。</div>'}</section></div>`;
+  return `<section class="hero"><div><h2>从一本书，开始一次好好表达</h2><p>选择资料，明确读者，让 AI 协助完成营销草稿。<br><span class="muted">生成内容经规则初筛后，仍需人工核对与审核。</span></p></div><img src="/cover.svg" alt="原创教学封面"></section><div class="stats"><div><strong>${state.tasks.length}</strong><span>营销任务</span></div><div><strong>${state.tasks.filter(t => t.status === 'pending_review').length}</strong><span>等待审核</span></div><div><strong>${state.materials.length}</strong><span>图书资料</span></div></div><div class="grid"><section><div class="card"><div class="row between"><h2>任务列表</h2>${editor ? '<button type="button" id="new">＋ 新建</button>' : ''}</div><div class="row" style="margin:12px 0"><input id="task-search" placeholder="搜索任务、读者或编号" value="${esc(taskSearch)}"><select id="task-filter"><option value="all">全部状态</option>${['draft','pending_review','returned','completed'].map(k=>`<option value="${k}" ${taskFilter===k?'selected':''}>${labels[k]}</option>`).join('')}</select><button type="button" id="search-tasks">筛选</button></div>${visibleTasks().map(t => `<button type="button" class="task ${t.id === selected ? 'selected' : ''}" data-task="${t.id}"><div class="row between"><strong>${esc(t.title)}</strong><span class="badge">${labels[t.status]}</span></div><p class="muted" style="margin:8px 0 0">#${t.id} · ${esc(t.channel)} · ${labels[t.ai_status]}</p></button>`).join('') || '<p class="muted">暂无任务，创建第一份营销内容。</p>'}</div>${editor && !selected ? `<div class="card"><h2>创建营销任务</h2><form id="create"><label>图书资料</label><select name="material_id">${state.materials.map(m => `<option value="${m.id}" ${String(create.material_id) === String(m.id) ? 'selected' : ''}>${esc(m.title)} · v${m.version}</option>`).join('')}</select>${fields(create)}<button type="submit" class="primary" style="margin-top:18px">保存任务</button></form></div>` : ''}</section><section>${detail && selected ? detailPage(editor) : '<div class="card empty">选择任务，查看图文草稿与执行记录。</div>'}</section></div>`;
 }
 function detailPage(editor) {
   const t = detail.task, v = detail.versions[0];
   const editable = editor && ['draft', 'returned'].includes(t.status) && t.ai_status !== 'running';
   const draft = drafts.get(t.id);
   let body = '';
-  if (tab === 'copy') body = `<div class="preview"><img src="/cover.svg" alt="教学示意封面"><div class="copy">${esc(v?.content || '暂未生成文案。请选择运行模式并开始生成。')}</div></div>${editable ? `<label>人工修改正文（切换页签保留草稿；保存后形成新版本）${draft ? ' · 有未保存修改' : ''}</label><textarea id="content" rows="12">${esc(draft?.content ?? v?.content ?? '')}</textarea><div class="row" style="margin-top:12px"><button type="button" id="save">保存新版本</button><button type="button" id="submit" class="primary">保存并提交审核</button></div>` : ''}${v ? '<button type="button" id="export" style="margin-top:15px">导出已保存图文 HTML</button>' : ''}`;
+  if (tab === 'copy') body = `<div class="preview"><div class="cover-slot">${detail.cover_html || '<img src="/cover.svg" alt="教学示意封面">'}</div><div class="copy rich-copy">${detail.preview_html || esc(v?.content || '暂未生成文案。请选择运行模式并开始生成。')}</div></div>${editable ? `<label>人工修改正文（切换页签保留草稿；保存后形成新版本）${draft ? ' · 有未保存修改' : ''}</label><textarea id="content" rows="12">${esc(draft?.content ?? v?.content ?? '')}</textarea><div class="row" style="margin-top:12px"><button type="button" id="save">保存新版本</button><button type="button" id="submit" class="primary">保存并提交审核</button></div>` : ''}${v ? '<button type="button" id="export" style="margin-top:15px">导出已保存图文 HTML</button>' : ''}`;
   if (tab === 'logs') body = detail.runs.map(r => `<div class="log ${r.status === 'failed' ? 'failed' : ''}"><strong>运行 #${r.id} · ${labels[r.mode]} · ${labels[r.status]}</strong><p class="muted">${esc(r.created)}</p>${r.mode !== 'real' ? '<div class="warn">演练记录，不作为真实模型调用证据。</div>' : ''}${r.error ? `<p role="alert">${esc(r.error)}</p>` : ''}${detail.logs.filter(l => l.run_id === r.id).map(l => `<details><summary>${esc(l.tool)} · ${labels[l.status]} · #${l.id}</summary><pre>参数：${esc(l.args)}\n返回：${esc(l.result)}\n时间：${esc(l.created)}</pre></details>`).join('')}</div>`).join('') || '<p class="muted">暂无运行记录</p>';
-  if (tab === 'versions') body = detail.versions.map(v => `<details class="log"><summary>版本 #${v.id} · ${esc(v.actor)} · ${esc(v.created)}</summary><pre>${esc(v.content)}</pre></details>`).join('') || '<p>暂无版本</p>';
+  if (tab === 'versions') body = (detail.versions.length > 1 ? `<div class="row"><select id="compare-from">${detail.versions.map((v,i)=>`<option value="${v.id}" ${i===1?'selected':''}>旧版本 #${v.id}</option>`).join('')}</select><select id="compare-to">${detail.versions.map(v=>`<option value="${v.id}">新版本 #${v.id}</option>`).join('')}</select><button type="button" id="compare">比较版本差异</button></div><pre id="compare-result" class="diff"></pre>` : '') + detail.versions.map(v => `<details class="log"><summary>版本 #${v.id} · ${esc(v.actor)} · ${esc(v.created)}</summary><pre>${esc(v.content)}</pre></details>`).join('') || '<p>暂无版本</p>';
+  if (tab === 'quality') body = qualityPanel();
   if (tab === 'review') body = `${!editor && t.status === 'pending_review' ? `<label>审核意见</label><textarea id="comment" rows="4" placeholder="说明通过依据或需要修改的内容">${esc(formDrafts.get('review-' + t.id) || '')}</textarea><div class="row" style="margin:12px 0"><button type="button" id="return">退回修改</button><button type="button" id="approve" class="primary">审核通过</button></div>` : editor && t.status === 'pending_review' ? '<div class="warn">已提交，请退出并使用 reviewer 账号审核。</div>' : ''}${detail.reviews.map(r => `<div class="log"><strong>${labels[r.action]} · ${esc(r.actor)}</strong><p>${esc(r.comment)}</p><small>${esc(r.created)}</small></div>`).join('') || '<p class="muted">暂无审核记录</p>'}`;
   const latestRun = detail.runs[0];
-  return `<div class="card"><div class="row between"><h2>${esc(t.title)}</h2><span class="badge">${labels[t.status]} / AI ${labels[t.ai_status]}</span></div><p class="muted">${esc(t.audience)} · ${esc(t.channel)} · ${esc(t.tone)} · 目标 ${t.length} 字</p>${editable ? `<details><summary>修改任务需求</summary><form id="update">${fields(formDrafts.get('update-' + t.id) || t)}<button type="submit" style="margin-top:12px">保存需求</button></form></details><div class="row" style="margin-top:18px"><select id="mode" style="width:auto"><option value="real" ${state.key_configured ? 'selected' : ''}>真实模型调用</option><option value="simulation" ${!state.key_configured ? 'selected' : ''}>模拟流程演练</option><option value="failure">模拟超时故障</option></select><button type="button" class="primary" id="run">生成营销草稿 →</button></div>` : ''}${t.ai_status === 'running' ? '<div class="warn" style="margin-top:16px">模型运行中，最多约 150 秒。已有文案保留，请等待执行结果。</div>' : t.ai_status === 'failed' && latestRun?.error ? `<div class="warn" role="alert" style="margin-top:16px">生成失败：${esc(latestRun.error)}。已有版本保留，可修正配置后重试。</div>` : ''}<div class="tabs">${[['copy', '图文草稿'], ['logs', '执行依据'], ['versions', '历史版本 (' + detail.versions.length + ')'], ['review', '审核记录']].map(([k, n]) => `<button type="button" data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}</div>`;
+  return `<div class="card"><div class="row between"><h2>${esc(t.title)}</h2><span class="badge">${labels[t.status]} / AI ${labels[t.ai_status]}</span></div><p class="muted">${esc(t.audience)} · ${esc(t.channel)} · ${esc(t.tone)} · 目标 ${t.length} 字</p>${editable ? `<details><summary>修改任务需求</summary><form id="update">${fields(formDrafts.get('update-' + t.id) || t)}<button type="submit" style="margin-top:12px">保存需求</button></form></details><div class="row" style="margin-top:18px"><select id="mode" style="width:auto"><option value="real" ${state.key_configured ? 'selected' : ''}>真实模型调用</option><option value="simulation" ${!state.key_configured ? 'selected' : ''}>模拟流程演练</option><option value="failure">模拟超时故障</option></select><button type="button" class="primary" id="run">生成营销草稿 →</button></div>` : ''}${t.ai_status === 'running' ? '<div class="warn" style="margin-top:16px">模型运行中，最多约 150 秒。已有文案保留，请等待执行结果。</div>' : t.ai_status === 'failed' && latestRun?.error ? `<div class="warn" role="alert" style="margin-top:16px">生成失败：${esc(latestRun.error)}。已有版本保留，可修正配置后重试。</div>` : ''}<div class="tabs">${[['copy', '图文草稿'], ['logs', '执行依据'], ['quality', '质量与依据'], ['versions', '历史版本 (' + detail.versions.length + ')'], ['review', '审核记录']].map(([k, n]) => `<button type="button" data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}<div class="row" style="margin-top:18px"><button type="button" id="evidence">导出任务运行证据 JSON</button></div></div>`;
+}
+function qualityPanel() {
+  const q = detail.quality, m = detail.material;
+  if (!q) return '<p class="muted">先生成或保存文案，再查看质量检查。</p>';
+  return `<div class="quality-summary"><strong>${q.errors} 项明确错误 · ${q.warnings} 项待核对</strong><span>${q.characters} 字符 / ${esc(q.channel)}</span></div><p class="muted">检查对应最新已保存版本；人工修改后请保存再查看。明确错误会阻止审核通过。</p>${q.checks.map(c=>`<div class="check ${c.level}"><span>${({error:'需修改',warning:'待核对',info:'提示'})[c.level]}</span> ${esc(c.message)}</div>`).join('') || '<p>规则初筛未发现问题，仍需人工核对完整事实。</p>'}<div class="card source-card"><h3>当前资料依据</h3><p>资料 #${m.id} · v${m.version} · ${esc(m.title)}<br>来源：${esc(m.source)}</p><details><summary>查看原始资料</summary><pre>${esc(m.content)}</pre></details><details><summary>来源指纹与渠道规则</summary><pre>SHA256: ${esc(q.source_hash)}\n规则：${esc(q.rule_id)}\n${esc(q.channel_guidance.structure)}\n${esc(q.channel_guidance.suggestion)}</pre></details></div><p class="muted">${esc(q.limits)}</p>`;
 }
 function settingsPage() {
   const c = state.model_config || {};
@@ -103,7 +113,7 @@ function settingsPage() {
 }
 function materialPage(editor) {
   const d = formDrafts.get('material') || {};
-  return `<div class="warn">所有样例均为教学模拟数据。资料新增后保持不可变，以资料 ID 和版本追溯；更新内容请新增一份资料。支持 UTF-8 TXT / Markdown 文本导入。</div><div class="grid"><section>${editor ? `<div class="card"><h2>新增图书资料</h2><form id="material"><label>资料标题</label><input name="title" value="${esc(d.title)}" required><label>导入 TXT / Markdown（可选）</label><input id="file" type="file" accept=".txt,.md"><label>正文</label><textarea name="content" id="material-content" rows="12" required placeholder="书名、作者、定价、简介、目录、已确认卖点">${esc(d.content)}</textarea><label>资料来源与用途</label><input name="source" required value="${esc(d.source || '原创教学模拟资料，不用于真实营销')}"><button type="submit" class="primary" style="margin-top:16px">保存资料</button></form></div>` : ''}<div class="card"><h2>营销规则 · ${esc(state.rules.id)}</h2>${state.rules.rules.map(x => `<p>· ${esc(x)}</p>`).join('')}<p class="muted">${esc(state.rules.source)}</p></div></section><section>${state.materials.map(m => `<div class="card"><h2>${esc(m.title)}</h2><span class="badge">资料 #${m.id} · v${m.version}</span><pre>${esc(m.content)}</pre><p class="muted">来源：${esc(m.source)}<br>${esc(m.created)}</p></div>`).join('')}</section></div>`;
+  return `<div class="warn">所有样例均为教学模拟数据。资料新增后保持不可变，以资料 ID 和版本追溯；更新内容请新增一份资料。支持 UTF-8 TXT / Markdown 文本导入。</div><div class="grid"><section>${editor ? `<div class="card"><h2>新增图书资料</h2><form id="material"><label>资料标题</label><input name="title" value="${esc(d.title)}" required><label>导入 TXT / Markdown（可选）</label><input id="file" type="file" accept=".txt,.md"><label>正文</label><textarea name="content" id="material-content" rows="12" required placeholder="书名、作者、定价、简介、目录、已确认卖点">${esc(d.content)}</textarea><label>上传图书封面（可选，PNG/JPG/WebP，500KB以内）</label><input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp"><input type="hidden" name="cover_data" value="${esc(d.cover_data || '')}"><div id="cover-preview">${d.cover_data ? `<img class="upload-cover" src="${esc(d.cover_data)}" alt="所选封面">` : ''}</div><label>资料来源与用途</label><input name="source" required value="${esc(d.source || '原创教学模拟资料，不用于真实营销')}"><button type="submit" class="primary" style="margin-top:16px">保存资料</button></form></div>` : ''}<div class="card"><h2>营销规则 · ${esc(state.rules.id)}</h2>${state.rules.rules.map(x => `<p>· ${esc(x)}</p>`).join('')}<p class="muted">${esc(state.rules.source)}</p></div></section><section>${state.materials.map(m => `<div class="card"><h2>${esc(m.title)}</h2><span class="badge">资料 #${m.id} · v${m.version}</span><pre>${esc(m.content)}</pre><p class="muted">来源：${esc(m.source)}<br>${esc(m.created)}</p></div>`).join('')}</section></div>`;
 }
 function formData(form) {
   const d = Object.fromEntries(new FormData(form));
@@ -123,7 +133,7 @@ async function saveContent(force = false) {
 }
 function download(content, filename) {
   const a = document.createElement('a');
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([content], { type: filename.endsWith('.json') ? 'application/json;charset=utf-8' : 'text/html;charset=utf-8' }));
   a.href = url; a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
@@ -198,6 +208,35 @@ function bind() {
     const result = await api('/tasks/' + selected + '/export');
     download(result.content, result.filename); toast('图文已导出');
   });
+  on('search-tasks', async () => {
+    taskSearch = document.querySelector('#task-search').value;
+    taskFilter = document.querySelector('#task-filter').value; render();
+  });
+  const search = document.querySelector('#task-search');
+  if (search) search.onkeydown = e => { if(e.key === 'Enter') document.querySelector('#search-tasks').click(); };
+  const filter = document.querySelector('#task-filter');
+  if (filter) filter.onchange = () => document.querySelector('#search-tasks').click();
+  on('compare', async () => {
+    const from = document.querySelector('#compare-from').value, to = document.querySelector('#compare-to').value;
+    const result = await api('/tasks/' + selected + '/compare?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+    document.querySelector('#compare-result').textContent = result.changed ? result.diff : '两个版本正文相同。';
+  });
+  on('evidence', async () => {
+    const result = await api('/tasks/' + selected + '/evidence'); download(result.content, result.filename);
+    toast('证据已导出；包含业务资料，分享前请核对。模拟记录不能代替真实调用。');
+  });
+  const cover = document.querySelector('#cover-file');
+  if (cover) cover.onchange = async () => {
+    try {
+      const file = cover.files[0]; if (!file) return;
+      if (file.size > 512000) throw Error('封面图片请控制在500KB以内');
+      if (!['image/png','image/jpeg','image/webp'].includes(file.type)) throw Error('只支持PNG、JPEG、WebP封面');
+      const data = await new Promise((resolve,reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(Error('封面读取失败')); r.readAsDataURL(file); });
+      const form = document.querySelector('#material'); form.elements.cover_data.value = data;
+      document.querySelector('#cover-preview').innerHTML = `<img class="upload-cover" src="${esc(data)}" alt="所选封面">`;
+      formDrafts.set('material', formData(form)); toast('封面已读入，点击保存资料后生效');
+    } catch(e) { toast(e.message); }
+  };
   const settings = document.querySelector('#model-settings');
   if (settings) {
     document.querySelector('#provider').onchange = e => {

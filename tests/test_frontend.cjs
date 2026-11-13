@@ -90,5 +90,30 @@ function setup(ids = [], groups = {}) {
     await f.onsubmit({ preventDefault() {} }); assert.equal(t.calls[0][0], expected);
     assert.equal(t.calls[0][1].length, 500); passed++;
   }
+  // 新增证据导出按钮可连续工作，走后端接口。
+  {
+    const t = setup(['evidence']); t.run('bind()');
+    await t.els.evidence.onclick(); await t.els.evidence.onclick();
+    assert.equal(t.calls[0][0], '/tasks/1/evidence'); assert.equal(t.els.evidence.disabled, false); passed++;
+  }
+  // 版本比较使用任务内的两个版本ID，而非前端虚构比较结果。
+  {
+    const t = setup(['compare', 'compare-from', 'compare-to', 'compare-result']);
+    t.els['compare-from'].value = '8'; t.els['compare-to'].value = '9';
+    t.run('bind()'); await t.els.compare.onclick();
+    assert.equal(t.calls[0][0], '/tasks/1/compare?from=8&to=9'); passed++;
+  }
+  // 质量页显示规则级别与真实来源字段，正文按后端受控渲染。
+  {
+    const t = setup();
+    t.run('detail.quality={errors:1,warnings:0,characters:30,channel:"公众号",checks:[{level:"error",message:"价格未核对"}],source_hash:"abc",rule_id:"rules",channel_guidance:{structure:"标题",suggestion:"短句"},limits:"仅初筛"};detail.material={id:1,version:1,title:"原书",source:"教学",content:"价格49元"};');
+    const html = t.run('qualityPanel()'); assert.match(html, /价格未核对/); assert.match(html, /原书/); passed++;
+  }
+  // 搜索和状态筛选保持任务原始数据，不混入其他状态。
+  {
+    const t = setup();
+    t.run('state.tasks=[{id:1,title:"阅读",audience:"大学生",status:"draft"},{id:2,title:"亲子",audience:"家庭",status:"completed"}];taskSearch="阅读";taskFilter="draft";');
+    assert.equal(t.run('visibleTasks().length'), 1); t.run('taskFilter="completed"'); assert.equal(t.run('visibleTasks().length'), 0); passed++;
+  }
   console.log(`${passed} frontend event-handler tests passed (DOM/HTTP stubs; not full browser QA).`);
 })().catch(e => { console.error(e); process.exitCode = 1; });

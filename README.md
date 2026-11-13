@@ -81,3 +81,28 @@ docs/：需求设计、测试用例、运行证据、汇报PPT、演示讲稿和
 后端：`python -m unittest discover -s tests -v`（21项）。
 前端事件：`node tests/test_frontend.cjs`（13项，需要Node，仅测试时需要）。
 模型响应使用测试替身，不作为真实服务商证据。详见 docs/修复记录_v1.1.0.md。
+
+## v1.2.0 实训交付版
+
+运行前先停止旧服务，再 git pull 并重新执行 py -3 app.py，浏览器Ctrl+F5。
+旧data.db启动时自动增加封面与快照字段，保留现有任务和人工版本。建议停止服务时自行备份数据库。
+
+新增：可选PNG/JPG/WebP封面导入（500KB）；受控Markdown图文排版；渠道建议；质量与来源面板；错误阻止审核；版本比较；任务搜索与状态筛选；后端证据导出；结合上版和退回意见重新生成。
+
+### 快速验收
+保持app.py运行，在另一个终端执行：
+```powershell
+py -3 scripts/acceptance.py
+```
+默认只做模拟流程。配置真实密钥后，可执行下面命令（会使用API额度）：
+```powershell
+py -3 scripts/acceptance.py --real
+```
+脚本生成正常/资料不足的任务与证据；故障分支是明确的模拟超时，不冒充真实网络失败。输出在本机evidence目录，已被git忽略。还需人工核对、Windows浏览器展示和备用录屏。
+
+当前回归：37项后端/配置/业务，17项前端事件。初版与v1.1的数字是历史记录，不能与本轮相加。
+详细交付范围与剩余工作见 docs/验收对照与剩余事项.md。
+GitHub调研、文件链接与具体采用思路见 docs/GitHub参考与改进说明.md。
+更新后的五页设计说明、12页PPT和三张PNG图均在docs目录；samples提供可导入文本。
+
+如需重新生成PPT与Word（运行系统不需要这些依赖）：安装 python-docx、python-pptx、pillow，再运行 `python scripts/build_materials.py`。

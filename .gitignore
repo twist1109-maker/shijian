@@ -4,3 +4,4 @@ config.local.json
 __pycache__/
 .env
 .model-config-*.tmp
+evidence/

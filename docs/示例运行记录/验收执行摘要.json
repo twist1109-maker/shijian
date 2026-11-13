@@ -1,0 +1,21 @@
+{
+  "mode": "simulation",
+  "steps": [
+    {
+      "scenario": "正常流程",
+      "task_id": 1,
+      "ai_status": "completed"
+    },
+    {
+      "scenario": "资料不足",
+      "task_id": 2,
+      "ai_status": "completed"
+    },
+    {
+      "scenario": "模拟调用失败",
+      "task_id": 3,
+      "ai_status": "failed"
+    }
+  ],
+  "limits": "故障场景为明确标注的模拟超时，不作为真实服务商失败证据。请另外录屏和人工核对模型输出。"
+}
