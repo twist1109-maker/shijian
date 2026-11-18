@@ -106,3 +106,7 @@ GitHub调研、文件链接与具体采用思路见 docs/GitHub参考与改进�
 更新后的五页设计说明、12页PPT和三张PNG图均在docs目录；samples提供可导入文本。
 
 如需重新生成PPT与Word（运行系统不需要这些依赖）：安装 python-docx、python-pptx、pillow，再运行 `python scripts/build_materials.py`。
+
+## UI 1.3 界面更新
+
+白色侧栏、任务与编辑分栏、流程步骤与下一步提示。业务版本仍为v1.2.0，原数据库无需迁移。已用Linux Chromium实际点击完成模拟生成与审核闭环，并检查5种宽度；详见 docs/UI调整与浏览器验证.md。拉取后重启服务并Ctrl+F5。

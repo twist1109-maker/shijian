@@ -96,7 +96,7 @@ def validate_cover(value):
 def cover_svg(title):
     lines = [title[i:i+7] for i in range(0, min(len(title), 28), 7)]
     words = ''.join(f'<text x="38" y="{155+i*45}" font-family="serif" font-size="29" fill="#244f3c">{html.escape(s)}</text>' for i, s in enumerate(lines))
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480"><rect width="360" height="480" fill="#e4e8d5"/><rect x="20" y="20" width="320" height="440" fill="none" stroke="#91a37b"/><text x="38" y="70" font-size="15" fill="#657955">SHUYU / BOOK NOTES</text>'+words+'<path d="M40 350Q120 320 180 360Q245 315 320 345V405Q240 380 180 425Q110 382 40 405Z" fill="#476b4f"/><text x="38" y="450" font-size="12" fill="#657955">教学排版示意 · 非真实图书封面</text></svg>'
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="480" viewBox="0 0 360 480"><rect width="360" height="480" fill="#e4e8d5"/><rect x="20" y="20" width="320" height="440" fill="none" stroke="#91a37b"/><text x="38" y="70" font-size="15" fill="#657955">SHUYU / BOOK NOTES</text>'+words+'<path d="M40 350Q120 320 180 360Q245 315 320 345V405Q240 380 180 425Q110 382 40 405Z" fill="#476b4f"/><text x="38" y="450" font-size="12" fill="#657955">教学排版示意 · 非真实图书封面</text></svg>'
 
 
 def cover_markup(material):
